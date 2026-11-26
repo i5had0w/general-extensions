@@ -29,9 +29,15 @@ export class MangaFoxInterceptor extends PaperbackInterceptor {
     data: ArrayBuffer,
   ): Promise<ArrayBuffer> {
     const cfMitigated = response.headers?.["cf-mitigated"];
-    if (cfMitigated === "challenge") {
+    const cloudflareBody =
+      response.status === 403 ? Application.arrayBufferToUTF8String(data).toLowerCase() : "";
+    const isCloudflareChallenge =
+      cfMitigated === "challenge" ||
+      (cloudflareBody.includes("attention required") && cloudflareBody.includes("cloudflare"));
+
+    if (isCloudflareChallenge) {
       throw new CloudflareError({
-        url: `${DOMAIN}/`,
+        url: request.url,
         method: request.method ?? "GET",
         headers: {
           "user-agent": await Application.getDefaultUserAgent(),

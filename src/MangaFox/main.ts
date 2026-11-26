@@ -271,7 +271,7 @@ export class MangaFoxExtension implements ExtensionImpl<typeof MangaFoxConfig> {
     }
 
     const request = {
-      url: urlBuilder.toString(),
+      url: page > 1 ? urlBuilder.toString() : withTrailingSlash(urlBuilder.toString()),
       method: "GET",
     };
 
@@ -458,7 +458,7 @@ export class MangaFoxExtension implements ExtensionImpl<typeof MangaFoxConfig> {
         collectedIds.push(safeId);
         searchResults.push({
           mangaId: safeId,
-          imageUrl: image,
+          imageUrl: normalizeImageUrl(image),
           title: title,
           subtitle: subtitle,
         });
@@ -501,7 +501,9 @@ export class MangaFoxExtension implements ExtensionImpl<typeof MangaFoxConfig> {
   // Populates the title details
   async getMangaDetails(mangaId: string): Promise<SourceManga> {
     const request = {
-      url: new URL(DOMAIN).addPathComponent("manga").addPathComponent(mangaId).toString(),
+      url: withTrailingSlash(
+        new URL(DOMAIN).addPathComponent("manga").addPathComponent(mangaId).toString(),
+      ),
       method: "GET",
     };
 
@@ -577,7 +579,7 @@ export class MangaFoxExtension implements ExtensionImpl<typeof MangaFoxConfig> {
       mangaId: mangaId,
       mangaInfo: {
         primaryTitle: title,
-        thumbnailUrl: image,
+        thumbnailUrl: normalizeImageUrl(image),
         rating: Number(rating),
         status: status,
         author: author,
@@ -593,10 +595,9 @@ export class MangaFoxExtension implements ExtensionImpl<typeof MangaFoxConfig> {
   // Populates the chapter list
   async getChapters(sourceManga: SourceManga): Promise<Chapter[]> {
     const request = {
-      url: new URL(DOMAIN)
-        .addPathComponent("manga")
-        .addPathComponent(sourceManga.mangaId)
-        .toString(),
+      url: withTrailingSlash(
+        new URL(DOMAIN).addPathComponent("manga").addPathComponent(sourceManga.mangaId).toString(),
+      ),
       method: "GET",
     };
 
@@ -640,11 +641,13 @@ export class MangaFoxExtension implements ExtensionImpl<typeof MangaFoxConfig> {
     console.log(`Fetching chapter details for ${chapter.chapterId}`);
 
     const request = {
-      url: new URL(DOMAIN)
-        .addPathComponent("manga")
-        .addPathComponent(chapter.sourceManga.mangaId)
-        .addPathComponent(chapter.chapterId)
-        .toString(),
+      url: withTrailingSlash(
+        new URL(DOMAIN)
+          .addPathComponent("manga")
+          .addPathComponent(chapter.sourceManga.mangaId)
+          .addPathComponent(chapter.chapterId)
+          .toString(),
+      ),
       method: "GET",
     };
 
@@ -666,7 +669,7 @@ export class MangaFoxExtension implements ExtensionImpl<typeof MangaFoxConfig> {
           if (urlsMatch && urlsMatch[1]) {
             const urls = urlsMatch[1].split("','");
             for (const url of urls) {
-              pages.push("https:" + url.replace("'", ""));
+              pages.push(normalizeImageUrl(url.replace("'", "")));
             }
           }
         }
@@ -763,7 +766,7 @@ export class MangaFoxExtension implements ExtensionImpl<typeof MangaFoxConfig> {
                       imageLinkEndPos,
                     );
 
-                    pages.push(`https:${baseLink}${imageLink}`);
+                    pages.push(normalizeImageUrl(`${baseLink}${imageLink}`));
                   } catch (e) {
                     console.error(`Error processing page ${i}:`, e);
                   }
@@ -780,7 +783,7 @@ export class MangaFoxExtension implements ExtensionImpl<typeof MangaFoxConfig> {
         $("img.img-fluid").each((_, element) => {
           const src = $(element).attr("src");
           if (src && src.length > 0) {
-            pages.push(src);
+            pages.push(normalizeImageUrl(src));
           }
         });
 
@@ -798,9 +801,9 @@ export class MangaFoxExtension implements ExtensionImpl<typeof MangaFoxConfig> {
                 if (json.images && Array.isArray(json.images)) {
                   json.images.forEach((img: string | string[]) => {
                     if (typeof img === "string") {
-                      pages.push(img);
+                      pages.push(normalizeImageUrl(img));
                     } else if (Array.isArray(img) && img.length > 0) {
-                      pages.push(img[0]);
+                      pages.push(normalizeImageUrl(img[0]));
                     }
                   });
                 }
@@ -849,11 +852,20 @@ function createDiscoverSectionItem(options: {
   return {
     type: options.type,
     mangaId: options.id,
-    imageUrl: options.image,
+    imageUrl: normalizeImageUrl(options.image),
     title: options.title,
     subtitle: options.subtitle,
     metadata: undefined,
   };
+}
+
+function normalizeImageUrl(url: string): string {
+  if (url.startsWith("//")) return `https:${url}`;
+  return url.replace(/^http:/i, "https:");
+}
+
+function withTrailingSlash(url: string): string {
+  return url.endsWith("/") ? url : `${url}/`;
 }
 
 const parseDate = (date: string): Date => {
