@@ -12,6 +12,7 @@
 
 import {
   BasicRateLimiter,
+  CloudflareError,
   ContentRating,
   CookieStorageInterceptor,
   DiscoverSectionType,
@@ -135,6 +136,7 @@ export class MangaFoxExtension implements ExtensionImpl<typeof MangaFoxConfig> {
   ): Promise<PagedResults<DiscoverSectionItem>> {
     const items: DiscoverSectionItem[] = [];
     const collectedIds = metadata?.collectedIds ?? [];
+    const collectedIdSet = new Set(collectedIds);
 
     const request = {
       url: DOMAIN,
@@ -155,8 +157,9 @@ export class MangaFoxExtension implements ExtensionImpl<typeof MangaFoxConfig> {
         .replace(/[^\w@.]/g, "_")
         .trim();
 
-      if (safeId && title && image && !collectedIds.includes(safeId)) {
+      if (safeId && title && image && !collectedIdSet.has(safeId)) {
         collectedIds.push(safeId);
+        collectedIdSet.add(safeId);
         items.push(
           createDiscoverSectionItem({
             id: safeId,
@@ -181,6 +184,7 @@ export class MangaFoxExtension implements ExtensionImpl<typeof MangaFoxConfig> {
   ): Promise<PagedResults<DiscoverSectionItem>> {
     const items: DiscoverSectionItem[] = [];
     const collectedIds = metadata?.collectedIds ?? [];
+    const collectedIdSet = new Set(collectedIds);
     const page = (metadata as { page?: number } | undefined)?.page ?? 1;
 
     // Build the URL with proper pagination
@@ -213,8 +217,9 @@ export class MangaFoxExtension implements ExtensionImpl<typeof MangaFoxConfig> {
         .replace(/[^\w@.]/g, "_")
         .trim();
 
-      if (safeId && title && image && !collectedIds.includes(safeId)) {
+      if (safeId && title && image && !collectedIdSet.has(safeId)) {
         collectedIds.push(safeId);
+        collectedIdSet.add(safeId);
         items.push(
           createDiscoverSectionItem({
             id: safeId,
@@ -261,6 +266,7 @@ export class MangaFoxExtension implements ExtensionImpl<typeof MangaFoxConfig> {
   ): Promise<PagedResults<DiscoverSectionItem>> {
     const items: DiscoverSectionItem[] = [];
     const collectedIds = metadata?.collectedIds ?? [];
+    const collectedIdSet = new Set(collectedIds);
     const page = (metadata as { page?: number } | undefined)?.page ?? 1;
 
     // Build the URL with proper pagination
@@ -292,8 +298,9 @@ export class MangaFoxExtension implements ExtensionImpl<typeof MangaFoxConfig> {
         .replace(/[^\w@.]/g, "_")
         .trim();
 
-      if (safeId && title && image && !collectedIds.includes(safeId)) {
+      if (safeId && title && image && !collectedIdSet.has(safeId)) {
         collectedIds.push(safeId);
+        collectedIdSet.add(safeId);
         items.push(
           createDiscoverSectionItem({
             id: safeId,
@@ -376,6 +383,7 @@ export class MangaFoxExtension implements ExtensionImpl<typeof MangaFoxConfig> {
     metadata: { page?: number; collectedIds?: string[] } | undefined,
   ): Promise<PagedResults<SearchResultItem>> {
     const collectedIds = metadata?.collectedIds ?? [];
+    const collectedIdSet = new Set(collectedIds);
     const page = (metadata as { page?: number } | undefined)?.page ?? 1;
     const urlBuilder = new URL(DOMAIN).addPathComponent("search");
     let fixedUrl = "";
@@ -454,8 +462,9 @@ export class MangaFoxExtension implements ExtensionImpl<typeof MangaFoxConfig> {
         .replace(/[^\w@.]/g, "_")
         .trim();
 
-      if (safeId && title && image && !collectedIds.includes(safeId)) {
+      if (safeId && title && image && !collectedIdSet.has(safeId)) {
         collectedIds.push(safeId);
+        collectedIdSet.add(safeId);
         searchResults.push({
           mangaId: safeId,
           imageUrl: normalizeImageUrl(image),
@@ -617,8 +626,6 @@ export class MangaFoxExtension implements ExtensionImpl<typeof MangaFoxConfig> {
 
       if (!chapterId) continue;
 
-      console.log(`Chapter ID: ${chapterId}`);
-
       const chapRegex = chapterId?.match(/c([0-9.]+)/);
       let chapNum = 0;
       if (chapRegex && chapRegex[1]) chapNum = Number(chapRegex[1]);
@@ -699,10 +706,11 @@ export class MangaFoxExtension implements ExtensionImpl<typeof MangaFoxConfig> {
           }
 
           // Find chapter ID
-          const chapterIdStartLoc = $.html().indexOf("chapterid");
+          const chapterHtml = $.html();
+          const chapterIdStartLoc = chapterHtml.indexOf("chapterid");
           if (chapterIdStartLoc > -1) {
-            const numericChapterId = $.html()
-              .substring(chapterIdStartLoc + 11, $.html().indexOf(";", chapterIdStartLoc))
+            const numericChapterId = chapterHtml
+              .substring(chapterIdStartLoc + 11, chapterHtml.indexOf(";", chapterIdStartLoc))
               .trim();
 
             // Find number of pages
@@ -739,6 +747,7 @@ export class MangaFoxExtension implements ExtensionImpl<typeof MangaFoxConfig> {
                       break;
                     }
                   } catch (err) {
+                    if (err instanceof CloudflareError) throw err;
                     console.error(`Error on attempt ${tr} for page ${i}:`, err);
                     // Continue to next attempt
                   }
@@ -827,6 +836,7 @@ export class MangaFoxExtension implements ExtensionImpl<typeof MangaFoxConfig> {
         pages: pages,
       };
     } catch (error) {
+      if (error instanceof CloudflareError) throw error;
       console.error(
         `Failed to get chapter details: ${error instanceof Error ? error.message : String(error)}`,
       );
